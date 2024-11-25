@@ -1,27 +1,218 @@
 from django.shortcuts import render, get_object_or_404, redirect
-from .models import Casillero, Usuario
-from .email_operations import EmailOperations  # Importa la clase
-from django.conf import settings  # Para obtener las credenciales desde settings.py
-from .forms import CasilleroPasswordForm
-from .forms import UsuarioForm  # Asegúrate de crear un formulario para Usuario
 from django.core.mail import EmailMessage
-from lockers.mqtt_client import send_message
-from django.http import HttpResponse
+from django.conf import settings
+from django.contrib.auth.models import User
+from .forms import CasilleroPasswordForm
 import json
+from .models import Casillero, Camera, LockerLog, User
+from lockers.mqtt_client import send_message
+from django.contrib.auth import login, authenticate, logout
+from django.contrib.auth.forms import AuthenticationForm
+from .forms import UserRegisterForm, UserLoginForm
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.forms import UserChangeForm
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.forms import PasswordChangeForm
+from django.shortcuts import render
+from django.db.models import Count, F
+from django.utils import timezone
+from datetime import timedelta
+from django.db.models.functions import TruncDate
+from django.db.models import Max
+from django.db.models import Subquery, OuterRef
 
+# Vista para el registro
+def register(request):
+    if request.method == 'POST':
+        form = UserRegisterForm(request.POST)
+        if form.is_valid():
+            form.save()  # Guarda el nuevo usuario
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password1')
+            user = authenticate(username=username, password=password)  # Autenticar al usuario
+            login(request, user)  # Iniciar sesión automáticamente
+            return redirect('home')  # Redirigir a la página principal o dashboard
+    else:
+        form = UserRegisterForm()
+
+    return render(request, 'register.html', {'form': form})
+
+
+# Vista para el login
+def user_login(request):
+    if request.method == 'POST':
+        form = UserLoginForm(request=request, data=request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            password = form.cleaned_data['password']
+            user = authenticate(username=username, password=password)
+            if user is not None:
+                login(request, user)
+                return redirect('home')  # Redirigir a la página principal o dashboard
+            else:
+                form.add_error(None, "Username or password is incorrect")
+    else:
+        form = UserLoginForm()
+
+    return render(request, 'login.html', {'form': form})
+
+# Vista para hacer logout
+def user_logout(request):
+    logout(request)
+    return redirect('home')  # Redirigir a la página principal o login
+
+@login_required
+
+def estadisticas(request):
+    user = request.user
+    #SUPER USER:
+    # Contar el total de casilleros
+    total_casilleros = Casillero.objects.count()
+    # Contar los casilleros ocupados
+    casilleros_ocupados = Casillero.objects.filter(usuario__isnull=False).count()
+    # Contar los casilleros disponibles
+    casilleros_disponibles = total_casilleros - casilleros_ocupados
+    # Contar la cantidad de usuarios
+    total_usuarios = User.objects.count()
+    # Contar la cantidad de controladores activos (cámaras con casilleros registrados)
+    controladores_activos = Camera.objects.filter(casilleros__isnull=False).distinct().count()
+    # Contar la cantidad de casilleros activos (ocupa un usuario)
+    casilleros_activos = Casillero.objects.filter(usuario__isnull=False).count()
+    # Contar las aperturas totales de casilleros por día para los últimos 7 días
+    fecha_hace_7_dias = timezone.now() - timedelta(days=7)
+    aperturas_por_dia = LockerLog.objects.filter(
+        event_type='open',
+        timestamp__gte=fecha_hace_7_dias
+    ).annotate(day=TruncDate('timestamp')).values('day').annotate(total_aperturas=Count('id')).order_by('day')
+    # Otros 4 métricas adicionales que pueden ser de interés:
+    # 1. Promedio de aperturas por casillero
+    aperturas_promedio_por_locker = LockerLog.objects.filter(event_type='open').count() / total_casilleros if total_casilleros else 0
+    # 2. Número de cámaras activas (que tienen casilleros asignados)
+    total_camaras = Camera.objects.count()
+    # 3. Casilleros por cámara (promedio)
+    casilleros_por_camara_promedio = total_casilleros / total_camaras if total_camaras else 0
+    # 4. Usuarios con más de un casillero
+    usuarios_con_multiples_casilleros = Casillero.objects.values('usuario').annotate(casilleros_count=Count('id')).filter(casilleros_count__gt=1)
+    #NORMAL USER:
+    casilleros_usuario = Casillero.objects.filter(usuario=request.user)
+
+    # Aperturas totales por día
+    aperturas_usuario_por_dia = LockerLog.objects.filter(
+        user=user,
+        event_type='open',
+        timestamp__gte=fecha_hace_7_dias
+    ).annotate(
+        day=TruncDate('timestamp')
+    ).values('day').annotate(
+        total_aperturas=Count('id')
+    ).order_by('day')
+
+    # Casillero con más aperturas
+    casillero_mas_aperturas = LockerLog.objects.filter(
+        user=user,
+        event_type='open'
+    ).values(
+        'locker__locker_id'
+    ).annotate(
+        total_aperturas=Count('id')
+    ).order_by('-total_aperturas').first()
+
+    # Casillero con más tiempo cerrado
+    casillero_mas_tiempo_cerrado = Casillero.objects.filter(
+    usuario=user
+    ).annotate(
+    last_opened=Subquery(
+        LockerLog.objects.filter(
+            locker=OuterRef('pk'),  # Relacionar con el casillero actual
+            event_type='open'  # Solo considerar aperturas
+        ).order_by('-timestamp')  # Ordenar por la más reciente
+        .values('timestamp')[:1]  # Tomar la última apertura
+    )
+    ).order_by('last_opened').first()
+
+    # Casillero con más tiempo ocupado
+    casillero_mas_tiempo_ocupado = Casillero.objects.filter(
+        usuario=user
+    ).annotate(
+        tiempo_ocupado=F('usuario__date_joined')  # Tiempo basado en asignación
+    ).order_by('usuario__date_joined').first()
+
+    
+    context = {
+        'aperturas_usuario_por_dia': aperturas_usuario_por_dia,
+        'casillero_mas_aperturas': casillero_mas_aperturas,
+        'casillero_mas_tiempo_cerrado': casillero_mas_tiempo_cerrado,
+        'casillero_mas_tiempo_ocupado': casillero_mas_tiempo_ocupado,
+        'total_casilleros': total_casilleros,
+        'casilleros_ocupados': casilleros_ocupados,
+        'casilleros_disponibles': casilleros_disponibles,
+        'total_usuarios': total_usuarios,
+        'controladores_activos': controladores_activos,
+        'casilleros_activos': casilleros_activos,
+        'aperturas_por_dia': aperturas_por_dia,
+        'aperturas_promedio_por_locker': aperturas_promedio_por_locker,
+        'total_camaras': total_camaras,
+        'casilleros_por_camara_promedio': casilleros_por_camara_promedio,
+        'usuarios_con_multiples_casilleros': usuarios_con_multiples_casilleros,
+    }
+
+    return render(request, 'estadisticas.html', context)
+
+@login_required
+def password_change(request):
+    if request.method == 'POST':
+        form = PasswordChangeForm(request.user, request.POST)
+        if form.is_valid():
+            form.save()  # Guardar el nuevo cambio de contraseña
+            update_session_auth_hash(request, form.user)  # Mantener al usuario autenticado después de cambiar la contraseña
+            return redirect('profile')  # Redirigir a la página de perfil
+    else:
+        form = PasswordChangeForm(request.user)
+
+    return render(request, 'password_change.html', {'form': form})
+# Vista para mostrar y editar el perfil del usuario
+@login_required
+def profile(request):
+    user = request.user  # Obtener el usuario actual
+
+    if request.method == 'POST':
+        form = UserChangeForm(request.POST, instance=user)  # Formulario para editar usuario
+        if form.is_valid():
+            form.save()  # Guardar los cambios
+            return redirect('profile')  # Redirigir a la vista de perfil después de guardar los cambios
+    else:
+        form = UserChangeForm(instance=user)  # Mostrar el formulario con los datos actuales
+
+    return render(request, 'profile.html', {'form': form})  # Renderizar la plantilla con el formulario
+
+@login_required
+def home(request):
+    return render(request, 'home.html')
+
+@login_required
 def mqtt_message_received(request):
     # Handle received MQTT messages here
     return HttpResponse("Received MQTT message!")
-
+@login_required
 # Vista para mostrar el estado de los casilleros
 def casilleros_list(request):
-    casilleros = Casillero.objects.select_related('usuario').all()  # Obtiene los casilleros con sus usuarios
-    print(casilleros)  # Verifica que los datos están siendo recuperados
-    return render(request, 'casilleros_list.html', {'casilleros': casilleros})
+    # Verificar si el usuario es un superusuario
+    if request.user.is_superuser:
+        # Si es superusuario, mostrar todos los casilleros
+        casilleros = Casillero.objects.select_related('usuario').all()
+    else:
+        # Si no es superusuario, solo mostrar los casilleros asignados al usuario
+        casilleros = Casillero.objects.filter(usuario=request.user)
 
+    return render(request, 'casilleros_list.html', {'casilleros': casilleros})
+@login_required
 def casillero_detail(request, casillero_id):
     casillero = get_object_or_404(Casillero, id=casillero_id)
-    usuarios = Usuario.objects.all()  # Obtén todos los usuarios para mostrarlos en el formulario
+    usuarios = User.objects.all()  # Obtén todos los usuarios para mostrarlos en el formulario
+
+    # Si el usuario no es superusuario, solo puede cambiar la contraseña de su propio casillero
+    if not request.user.is_superuser and casillero.usuario != request.user:
+        return redirect('home')  # Redirige si no tiene permiso
 
     if request.method == 'POST':
         # Si se presionó el botón para cambiar la contraseña
@@ -29,13 +220,12 @@ def casillero_detail(request, casillero_id):
             form = CasilleroPasswordForm(request.POST, instance=casillero)
             if form.is_valid():
                 form.save()  # Guarda la nueva contraseña
-                
-                # Verificar si el usuario tiene un nombre y correo
+
+                # Enviar correo electrónico notificando el cambio de contraseña
                 usuario = casillero.usuario
-                if usuario and usuario.name and usuario.email:
-                    # Enviar correo electrónico notificando el cambio de contraseña
+                if usuario and usuario.username and usuario.email:
                     asunto = 'Tu contraseña ha sido cambiada'
-                    mensaje = f"<p>Hola {usuario.name}, tu contraseña ha sido cambiada con éxito.</p><p>Tu nueva contraseña es: {casillero.password}</p>"
+                    mensaje = f"<p>Hola {usuario.username}, tu contraseña ha sido cambiada con éxito.</p><p>Tu nueva contraseña es: {casillero.password}</p>"
                     destinatarios = [usuario.email]
 
                     email = EmailMessage(
@@ -55,21 +245,21 @@ def casillero_detail(request, casillero_id):
                 }
                 send_message("set_locker_g15", json.dumps(mqtt_message))  # Publicar el mensaje con JSON
 
-                return redirect('locker_detail', casillero_id=casillero.id)  # Redirige para ver los cambios
+                return redirect('casillero_detail', casillero_id=casillero.id)
 
-        # Si se presionó el botón para cambiar el usuario
-        elif 'cambiar_usuario' in request.POST:
+        # Si se presionó el botón para cambiar el usuario (solo para superusuarios)
+        elif 'cambiar_usuario' in request.POST and request.user.is_superuser:
             nuevo_usuario_id = request.POST.get('nuevo_usuario_id')
             if nuevo_usuario_id:
-                nuevo_usuario = Usuario.objects.get(id=nuevo_usuario_id)
-                casillero.usuario = nuevo_usuario
-                casillero.save()
+                nuevo_usuario = User.objects.get(id=nuevo_usuario_id)  # Obtener el nuevo usuario
+                casillero.usuario = nuevo_usuario  # Asignar el nuevo usuario
+                casillero.save()  # Guardar el casillero con el nuevo usuario
 
                 # Enviar correo electrónico al nuevo usuario notificando el ID del casillero y su contraseña
                 asunto = 'Nuevo Casillero Asignado'
                 mensaje = f"""
-                <p>Hola {nuevo_usuario.name},</p>
-                <p>Se te ha asignado el Casillero ID: {casillero.id}.</p>
+                <p>Hola {nuevo_usuario.username},</p>
+                <p>Se te ha asignado el Casillero ID: {casillero.locker_id}.</p>
                 <p>Tu contraseña es: {casillero.password}</p>
                 """
                 destinatarios = [nuevo_usuario.email]
@@ -83,7 +273,10 @@ def casillero_detail(request, casillero_id):
                 email.content_subtype = "html"
                 email.send()
 
-                return redirect('locker_detail', casillero_id=casillero.id)
+                # Actualizar el casillero después del cambio de usuario
+                casillero.refresh_from_db()  # Refrescar la instancia de casillero desde la base de datos
+
+                return redirect('casillero_detail', casillero_id=casillero.id)
 
     else:
         form = CasilleroPasswordForm(instance=casillero)
@@ -91,64 +284,7 @@ def casillero_detail(request, casillero_id):
     return render(request, 'casillero_detail.html', {
         'casillero': casillero,
         'form': form,
-        'usuarios': usuarios,  # Pasar la lista de usuarios a la plantilla
+        'usuarios': usuarios,  # Solo será útil si el usuario es superusuario
     })
 
 
-# Vista para listar usuarios
-def usuarios_list(request):
-    usuarios = Usuario.objects.all()
-    return render(request, 'usuarios_list.html', {'usuarios': usuarios})
-
-# Vista para crear un usuario
-def usuario_create(request):
-    if request.method == 'POST':
-        form = UsuarioForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return redirect('usuarios_list')
-    else:
-        form = UsuarioForm()
-    return render(request, 'usuario_form.html', {'form': form})
-
-
-# Vista para editar un usuario
-def usuario_update(request, usuario_id):
-    usuario = get_object_or_404(Usuario, id=usuario_id)
-    
-    if request.method == 'POST':
-        form = UsuarioForm(request.POST, instance=usuario)
-        if form.is_valid():
-            form.save()
-
-            # Configuración del correo electrónico
-            asunto = 'Tu contraseña ha sido cambiada'
-            mensaje = f'Hola {usuario.name}, tu contraseña ha sido actualizada con éxito.'
-            destinatarios = [usuario.email]  # Usa el email del usuario en la base de datos
-
-            # Instancia de EmailOperations sin pasar username y password
-            email_ops = EmailOperations()  # No necesitas pasar username ni password aquí
-            
-            # Enviar el correo
-            email_ops.send_email(
-                receivers_email=destinatarios,
-                subject=asunto,
-                message=mensaje
-            )
-
-            return redirect('usuarios_list')
-    
-    else:
-        form = UsuarioForm(instance=usuario)
-    
-    return render(request, 'usuario_form.html', {'form': form})
-
-
-
-# Vista para eliminar un usuario
-def usuario_delete(request, usuario_id):
-    usuario = get_object_or_404(Usuario, id=usuario_id)
-    if request.method == 'POST':
-        usuario.delete()
-        return redirect('usuarios_list')
-    return render(request, 'usuario_confirm_delete.html', {'usuario': usuario})

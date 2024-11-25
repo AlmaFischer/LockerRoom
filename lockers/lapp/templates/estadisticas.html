@@ -1,0 +1,199 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estadísticas</title>
+
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <a class="navbar-brand" href="{% url 'home' %}">LockerRoom</a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav mr-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'casilleros_list' %}">Mis Casilleros</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'estadisticas' %}">Estadísticas</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav ml-auto">
+                {% if user.is_authenticated %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Mi Perfil
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
+                        <li><a class="dropdown-item" href="{% url 'profile' %}">Ver Perfil</a></li>
+                        <li><a class="dropdown-item" href="{% url 'logout' %}">Cerrar sesión</a></li>
+                    </ul>
+                </li>
+                {% else %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'login' %}">Iniciar sesión</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'register' %}">Registrarse</a>
+                </li>
+                {% endif %}
+            </ul>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1 class="my-4">Estadísticas del Sistema</h1>
+        {% if not user.is_superuser %}
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">Aperturas Totales por Día (Últimos 7 Días)</div>
+                    <div class="card-body">
+                        <ul>
+                            {% for apertura in aperturas_usuario_por_dia %}
+                                <li>{{ apertura.day }}: {{ apertura.total_aperturas }} aperturas</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">Casillero con Más Aperturas</div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ casillero_mas_aperturas.locker__locker_id }} - {{ casillero_mas_aperturas.total_aperturas }} aperturas</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">Casillero Más Tiempo Cerrado</div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ casillero_mas_tiempo_cerrado.locker_id }}</h4>
+                        <p>Última apertura: {{ casillero_mas_tiempo_cerrado.last_opened }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">Casillero con Más Tiempo Ocupado</div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ casillero_mas_tiempo_ocupado.locker_id }}</h4>
+                        <p>Asignado desde: {{ casillero_mas_tiempo_ocupado.usuario.date_joined }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+        {% elif user.is_superuser %}
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Total de Casilleros
+                    </div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ total_casilleros }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Casilleros Ocupados
+                    </div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ casilleros_ocupados }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Casilleros Disponibles
+                    </div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ casilleros_disponibles }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Total de Usuarios
+                    </div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ total_usuarios }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Controladores Activos
+                    </div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ controladores_activos }}</h4>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Casilleros Activos
+                    </div>
+                    <div class="card-body">
+                        <h4 class="card-title">{{ casilleros_activos }}</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Aperturas Totales por Día (Últimos 7 Días)
+                    </div>
+                    <div class="card-body">
+                        <ul>
+                            {% for apertura in aperturas_por_dia %}
+                                <li>{{ apertura.day }}: {{ apertura.total_aperturas }} aperturas</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        Métricas Adicionales
+                    </div>
+                    <div class="card-body">
+                        <ul>
+                            <li>Aperturas Promedio por Casillero: {{ aperturas_promedio_por_locker }}</li>
+                            <li>Casilleros por Cámara Promedio: {{ casilleros_por_camara_promedio }}</li>
+                            <li>Usuarios con más de un Casillero: {{ usuarios_con_multiples_casilleros|length }}</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

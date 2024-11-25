@@ -1,12 +1,5 @@
 from django.db import models
-
-class Usuario(models.Model):
-    # Atributos para el modelo Usuario
-    name = models.CharField(max_length=100)  # Nombre del usuario
-    email = models.EmailField(unique=True)   # Correo electrónico único
-
-    def __str__(self):
-        return self.name
+from django.contrib.auth.models import User
 
 class Camera(models.Model):
     # Atributos para el modelo Camera
@@ -18,7 +11,7 @@ class Camera(models.Model):
 
 class Casillero(models.Model):
     # Atributos para el modelo Casillero
-    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, null=True, blank=True)  # Relación con el modelo Usuario
+    usuario = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)  # Relación con el modelo User
     password = models.CharField(max_length=100)  # Contraseña del casillero
     camera = models.ForeignKey(Camera, on_delete=models.CASCADE, related_name='casilleros')  # Relación con la cámara
     locker_id = models.CharField(max_length=50, unique=True)  # Un identificador único para cada casillero
@@ -40,6 +33,7 @@ class Casillero(models.Model):
         if self.camera is not None:
             return f"Locker {self.locker_id} for camera {self.camera.name}"
         return f"Locker {self.locker_id} (no camera assigned)"
+
 class LockerLog(models.Model):
     EVENT_TYPES = [
         ('open', 'Apertura'),
@@ -47,8 +41,10 @@ class LockerLog(models.Model):
     ]
     
     locker = models.ForeignKey(Casillero, on_delete=models.CASCADE, related_name='logs')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='locker_logs')  # Usuario que generó el evento
     event_type = models.CharField(max_length=5, choices=EVENT_TYPES)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.get_event_type_display()} - Locker {self.locker.locker_id} at {self.timestamp}"
+        user_info = f" by {self.user.username}" if self.user else ""
+        return f"{self.get_event_type_display()} - Locker {self.locker.locker_id} at {self.timestamp}{user_info}"

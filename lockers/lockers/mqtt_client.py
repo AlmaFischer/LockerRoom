@@ -15,7 +15,8 @@ recent_messages = {}
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')  # Cambia 'your_project' al nombre de tu proyecto
 django.setup()
 
-from lapp.models import Casillero, Camera, Usuario, LockerLog  # Importa los modelos después de configurar Django
+from django.contrib.auth.models import User  # Importa el modelo User de Django
+from lapp.models import Casillero, Camera, LockerLog  # Importa los modelos después de configurar Django
 
 # Callback para manejar la conexión al broker
 def on_connect(client, userdata, flags, rc):
@@ -53,14 +54,14 @@ def on_message(client, userdata, msg):
 
             # Obtener el casillero
             casillero = get_object_or_404(Casillero, locker_id=combined_locker_id)
-            usuario = casillero.usuario
+            usuario = casillero.usuario 
 
             # Crear un log de apertura
-            LockerLog.objects.create(locker=casillero, event_type='open')
+            LockerLog.objects.create(locker=casillero, event_type='open', user=usuario)
 
             # Enviar el correo al usuario notificando la apertura
             asunto = 'Notificación de apertura de casillero'
-            mensaje = f"<p>Hola {usuario.name},</p><p>Tu casillero con ID {casillero.locker_id} de la cámara {camera_name} ha sido abierto.</p>"
+            mensaje = f"<p>Hola {usuario.username},</p><p>Tu casillero con ID {casillero.locker_id} de la cámara {camera_name} ha sido abierto.</p>"
             destinatarios = [usuario.email]
 
             email = EmailMessage(
@@ -98,9 +99,9 @@ def on_message(client, userdata, msg):
 
             # Obtener el casillero
             casillero = get_object_or_404(Casillero, locker_id=combined_locker_id)
-
+            usuario = casillero.usuario
             # Crear un log de cierre
-            LockerLog.objects.create(locker=casillero, event_type='close')
+            LockerLog.objects.create(locker=casillero, event_type='close', user=usuario)
 
             print(f"Locker {casillero.locker_id} closed")
 

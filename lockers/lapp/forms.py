@@ -1,20 +1,26 @@
-
 from django import forms
-from .models import Usuario, Casillero
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
+from django.contrib.auth.models import User
+from .models import Casillero
 from django.core.exceptions import ValidationError
 
-class UsuarioForm(forms.ModelForm):
-    class Meta:
-        model = Usuario
+# Formulario de registro
+class UserRegisterForm(UserCreationForm):
+    email = forms.EmailField(required=True)  # Añadir el campo de email
 
-        fields = ['name', 'email']
+    class Meta:
+        model = User
+        fields = ['username', 'email', 'password1', 'password2']  # Los campos para el registro
+
+# Formulario de login
+class UserLoginForm(AuthenticationForm):
+    username = forms.CharField(max_length=100)
+    password = forms.CharField(widget=forms.PasswordInput())
 
 class CasilleroPasswordForm(forms.ModelForm):
     class Meta:
         model = Casillero
-        fields = ['password']  # Campo de contraseña
-    
-    nuevo_usuario_id = forms.ModelChoiceField(queryset=Usuario.objects.all(), required=False, label="Nuevo Usuario")
+        fields = ['password']  # Solo incluye el campo de contraseña en el formulario
 
     def clean_password(self):
         password = self.cleaned_data.get('password')

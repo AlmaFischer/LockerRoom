@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Casilleros Disponibles</title>
+    <title>{% block title %}LockerRoom{% endblock %}</title>
 
     <!-- Agregar Bootstrap desde archivos estáticos -->
     <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
@@ -13,8 +13,8 @@
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Barra de navegación -->
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <!-- Barra de navegación -->
         <a class="navbar-brand" href="{% url 'home' %}">LockerRoom</a>
         <div class="collapse navbar-collapse">
             <ul class="navbar-nav mr-auto">
@@ -48,38 +48,7 @@
         </div>
     </nav>
 
-    <div class="container mt-4">
-        <h1 class="my-4">Casilleros Disponibles</h1>
-        <table class="table table-bordered">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Usuario</th>
-                    <th>Contraseña</th>
-                    <th>Acciones</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for casillero in casilleros %}
-                <tr>
-                    <td>{{ casillero.locker_id }}</td>
-                    <td>{{ casillero.usuario.username }}</td>
-                    <td>{{ casillero.password }}</td>
-                    <td>
-                        <!-- Botón que redirige a los detalles del casillero -->
-                        <a href="{% url 'locker_detail' casillero.id %}" class="btn btn-info">
-                            Ver Detalles
-                        </a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="4" class="text-center">No hay casilleros disponibles</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    {% block content %}{% endblock %}
 
     <!-- Agregar los scripts de Bootstrap desde archivos estáticos -->
     <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>

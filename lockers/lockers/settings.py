@@ -26,7 +26,8 @@ SECRET_KEY = 'django-insecure-@jqux%((#34ahh645q01f7u2$_iq3vx&g29@07s^dka3nbn*t#
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
+LOGIN_URL = 'login/'
+LOGIN_REDIRECT_URL = 'home'
 
 # Application definition
 
@@ -143,3 +144,12 @@ MQTT_PORT = 1883  # Default MQTT port (non-SSL)
 MQTT_KEEPALIVE = 60  # Keep alive time in seconds
 MQTT_USER = 'PDS123'  # Optional username
 MQTT_PASSWORD = 'PDS123'  # Optional password
+
+
+STATIC_URL = '/static/'
+
+# Directorios donde Django buscará los archivos estáticos
+STATICFILES_DIRS = [
+    BASE_DIR / "static",  # Esto incluye la carpeta static en el directorio base de tu proyecto
+]
+
