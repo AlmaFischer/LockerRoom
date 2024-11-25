@@ -30,26 +30,30 @@ def casillero_detail(request, casillero_id):
             if form.is_valid():
                 form.save()  # Guarda la nueva contraseña
                 
-                # Enviar correo electrónico notificando el cambio de contraseña
-                asunto = 'Tu contraseña ha sido cambiada'
-                mensaje = f"<p>Hola {casillero.usuario.name}, tu contraseña ha sido cambiada con éxito.</p><p>Tu nueva contraseña es: {casillero.password}</p>"
-                destinatarios = [casillero.usuario.email]
+                # Verificar si el usuario tiene un nombre y correo
+                usuario = casillero.usuario
+                if usuario and usuario.name and usuario.email:
+                    # Enviar correo electrónico notificando el cambio de contraseña
+                    asunto = 'Tu contraseña ha sido cambiada'
+                    mensaje = f"<p>Hola {usuario.name}, tu contraseña ha sido cambiada con éxito.</p><p>Tu nueva contraseña es: {casillero.password}</p>"
+                    destinatarios = [usuario.email]
 
-                email = EmailMessage(
-                    asunto,
-                    mensaje,
-                    settings.DEFAULT_FROM_EMAIL,
-                    destinatarios,
-                )
-                email.content_subtype = "html"
-                email.send()
+                    email = EmailMessage(
+                        asunto,
+                        mensaje,
+                        settings.DEFAULT_FROM_EMAIL,
+                        destinatarios,
+                    )
+                    email.content_subtype = "html"
+                    email.send()
 
                 # Publicar el mensaje MQTT en el tópico 'set_locker_pw'
                 mqtt_message = {
-                    "id": casillero.id,
-                    "new_password": casillero.password
+                    "cam_target": casillero.camera.name,
+                    "id": casillero.locker_id[-1],
+                    "password": casillero.password
                 }
-                send_message("set_locker_pw", json.dumps(mqtt_message))  # Publicar el mensaje con JSON
+                send_message("set_locker_g15", json.dumps(mqtt_message))  # Publicar el mensaje con JSON
 
                 return redirect('locker_detail', casillero_id=casillero.id)  # Redirige para ver los cambios
 

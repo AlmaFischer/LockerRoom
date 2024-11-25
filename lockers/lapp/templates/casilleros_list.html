@@ -6,6 +6,8 @@
             <th>Usuario</th>
             <th>Email</th>
             <th>Contraseña</th>
+            <th>Camara</th>
+            <th>ID de Locker</th>
             <th>Acción</th>
         </tr>
     </thead>
@@ -16,6 +18,8 @@
                 <td>{{ casillero.usuario.name }}</td>
                 <td>{{ casillero.usuario.email }}</td>
                 <td>{{ casillero.password }}</td>
+                <td>{{ casillero.camera.name}}</td>
+                <td>{{ casillero.locker_id }}</td>
                 <td>
                     <a href="{% url 'locker_detail' casillero.id %}">Ver</a>
                 </td>

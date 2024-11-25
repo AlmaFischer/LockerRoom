@@ -6,19 +6,24 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.shortcuts import get_object_or_404
 import time
+from django.utils import timezone
+
 
 recent_messages = {}
+
 # Configura Django para cargar las aplicaciones
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')  # Cambia 'your_project' al nombre de tu proyecto
 django.setup()
 
-from lapp.models import Casillero  # Importa el modelo después de configurar Django
+from lapp.models import Casillero, Camera, Usuario, LockerLog  # Importa los modelos después de configurar Django
 
 # Callback para manejar la conexión al broker
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         print("Connected to broker successfully")
-        client.subscribe("open_locker")  # Suscribirse al topic "open_locker"
+        client.subscribe("open_locker_g15")  # Suscribirse al topic "open_locker"
+        client.subscribe("new_camera_g15")  # Para agregar nuevos casilleros
+        client.subscribe("close_locker_g15")  # Suscribirse al topic "close_locker"
     else:
         print("Failed to connect. Return code:", rc)
 
@@ -26,28 +31,36 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     print(f"Received message: {msg.payload.decode()} on topic: {msg.topic}")
     
-    if msg.topic == "open_locker":
+    if msg.topic == "open_locker_g15":
         try:
             # Parsear el mensaje JSON
             data = json.loads(msg.payload.decode())
             locker_id = data.get("id")
+            camera_name = data.get("camera_name")
 
-            # Evitar duplicados: verificar si el mensaje ya fue procesado
-            current_time = time.time()
-            if locker_id in recent_messages and current_time - recent_messages[locker_id] < 5:
-                print(f"Duplicate message ignored for locker ID {locker_id}")
+            if not locker_id or not camera_name:
+                print("Missing locker_id or camera_name in the message.")
                 return
 
-            # Actualizar el historial de mensajes
-            recent_messages[locker_id] = current_time
+            combined_locker_id = f"{camera_name}_{locker_id}"
 
-            # Obtener el casillero y su usuario
-            casillero = get_object_or_404(Casillero, id=locker_id)
+            current_time = time.time()
+            if combined_locker_id in recent_messages and current_time - recent_messages[combined_locker_id] < 5:
+                print(f"Duplicate message ignored for locker ID {combined_locker_id}")
+                return
+
+            recent_messages[combined_locker_id] = current_time
+
+            # Obtener el casillero
+            casillero = get_object_or_404(Casillero, locker_id=combined_locker_id)
             usuario = casillero.usuario
+
+            # Crear un log de apertura
+            LockerLog.objects.create(locker=casillero, event_type='open')
 
             # Enviar el correo al usuario notificando la apertura
             asunto = 'Notificación de apertura de casillero'
-            mensaje = f"<p>Hola {usuario.name},</p><p>Tu casillero con ID {casillero.id} ha sido abierto.</p>"
+            mensaje = f"<p>Hola {usuario.name},</p><p>Tu casillero con ID {casillero.locker_id} de la cámara {camera_name} ha sido abierto.</p>"
             destinatarios = [usuario.email]
 
             email = EmailMessage(
@@ -59,9 +72,79 @@ def on_message(client, userdata, msg):
             email.content_subtype = "html"
             email.send()
 
-            print(f"Notification sent to {usuario.email} for locker ID {casillero.id}")
+            print(f"Notification sent to {usuario.email} for locker ID {casillero.locker_id} in camera {camera_name}")
 
         except (json.JSONDecodeError, KeyError):
+            print("Error processing message or invalid JSON format")
+
+    elif msg.topic == "close_locker_g15":
+        try:
+            data = json.loads(msg.payload.decode())
+            locker_id = data.get("id")
+            camera_name = data.get("camera_name")
+
+            if not locker_id or not camera_name:
+                print("Missing locker_id or camera_name in the message.")
+                return
+
+            combined_locker_id = f"{camera_name}_{locker_id}"
+
+            current_time = time.time()
+            if combined_locker_id in recent_messages and current_time - recent_messages[combined_locker_id] < 5:
+                print(f"Duplicate message ignored for locker ID {combined_locker_id}")
+                return
+
+            recent_messages[combined_locker_id] = current_time
+
+            # Obtener el casillero
+            casillero = get_object_or_404(Casillero, locker_id=combined_locker_id)
+
+            # Crear un log de cierre
+            LockerLog.objects.create(locker=casillero, event_type='close')
+
+            print(f"Locker {casillero.locker_id} closed")
+
+        except (json.JSONDecodeError, KeyError):
+            print("Error processing message or invalid JSON format")
+
+    elif msg.topic == "new_camera_g15":
+        print("Adding New Locker")
+        try:
+            # Parsear el mensaje JSON
+            data = json.loads(msg.payload.decode())
+            camera_name = data.get("camera_name")
+            locker_count = data.get("locker_count", 0)
+
+            if not camera_name or locker_count <= 0:
+                print("Invalid data received for new locker")
+                return
+
+            # Verificar si la cámara ya existe
+            camera = Camera.objects.filter(name=camera_name).first()
+
+            if camera:
+                print(f"Camera '{camera_name}' already exists in the database. No changes made.")
+                return
+            else:
+                # Si la cámara no existe, se crea una nueva cámara
+                camera = Camera.objects.create(name=camera_name)
+                print(f"New camera '{camera_name}' added to the database.")
+
+            # Agregar casilleros a la base de datos solo si la cámara es nueva o ya existe
+            for i in range(camera.lockers_count, camera.lockers_count + locker_count):
+                locker_id = f"{camera.name}_{i + 1}"
+                Casillero.objects.create(
+                    camera=camera,
+                    locker_id=locker_id,
+                    password="0000",  # Puedes establecer una contraseña por defecto o manejarla de otra manera
+                )
+                print(f"Locker '{locker_id}' added to camera '{camera_name}'.")
+
+            # Actualizar la cantidad de casilleros en la cámara
+            camera.lockers_count += locker_count
+            camera.save()
+
+        except json.JSONDecodeError:
             print("Error processing message or invalid JSON format")
 
 # Función para enviar mensajes al broker MQTT
