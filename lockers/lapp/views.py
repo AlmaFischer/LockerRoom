@@ -20,49 +20,12 @@ from datetime import timedelta
 from django.db.models.functions import TruncDate
 from django.db.models import Max
 from django.db.models import Subquery, OuterRef
-
-# Vista para el registro
-def register(request):
-    if request.method == 'POST':
-        form = UserRegisterForm(request.POST)
-        if form.is_valid():
-            form.save()  # Guarda el nuevo usuario
-            username = form.cleaned_data.get('username')
-            password = form.cleaned_data.get('password1')
-            user = authenticate(username=username, password=password)  # Autenticar al usuario
-            login(request, user)  # Iniciar sesión automáticamente
-            return redirect('home')  # Redirigir a la página principal o dashboard
-    else:
-        form = UserRegisterForm()
-
-    return render(request, 'register.html', {'form': form})
-
-
-# Vista para el login
-def user_login(request):
-    if request.method == 'POST':
-        form = UserLoginForm(request=request, data=request.POST)
-        if form.is_valid():
-            username = form.cleaned_data['username']
-            password = form.cleaned_data['password']
-            user = authenticate(username=username, password=password)
-            if user is not None:
-                login(request, user)
-                return redirect('home')  # Redirigir a la página principal o dashboard
-            else:
-                form.add_error(None, "Username or password is incorrect")
-    else:
-        form = UserLoginForm()
-
-    return render(request, 'login.html', {'form': form})
-
-# Vista para hacer logout
-def user_logout(request):
-    logout(request)
-    return redirect('home')  # Redirigir a la página principal o login
-
+from django.views.decorators.cache import never_cache
+import matplotlib.pyplot as plt
+import io
+import urllib, base64
+@never_cache
 @login_required
-
 def estadisticas(request):
     user = request.user
     #SUPER USER:
@@ -76,8 +39,6 @@ def estadisticas(request):
     total_usuarios = User.objects.count()
     # Contar la cantidad de controladores activos (cámaras con casilleros registrados)
     controladores_activos = Camera.objects.filter(casilleros__isnull=False).distinct().count()
-    # Contar la cantidad de casilleros activos (ocupa un usuario)
-    casilleros_activos = Casillero.objects.filter(usuario__isnull=False).count()
     # Contar las aperturas totales de casilleros por día para los últimos 7 días
     fecha_hace_7_dias = timezone.now() - timedelta(days=7)
     aperturas_por_dia = LockerLog.objects.filter(
@@ -95,6 +56,27 @@ def estadisticas(request):
     usuarios_con_multiples_casilleros = Casillero.objects.values('usuario').annotate(casilleros_count=Count('id')).filter(casilleros_count__gt=1)
     #NORMAL USER:
     casilleros_usuario = Casillero.objects.filter(usuario=request.user)
+
+    casilleros_por_usuario = Casillero.objects.values('usuario__username').annotate(casilleros_count=Count('id'))
+
+    # Preparar los datos para el gráfico de torta
+    usuarios = [item['usuario__username'] for item in casilleros_por_usuario]
+    casilleros_count = [item['casilleros_count'] for item in casilleros_por_usuario]
+
+    # Crear el gráfico de torta
+    fig, ax = plt.subplots()
+    ax.pie(casilleros_count, labels=usuarios, autopct='%1.1f%%', startangle=90, colors=["#1ABC9C", "#F4C542", "#E74C3C", "#2C3E50", "#1F3B4D"])
+    ax.axis('equal')  # Para que el gráfico sea circular
+
+    # Guardar la imagen del gráfico en un buffer en memoria
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+
+    # Codificar la imagen a base64 para enviarla al template
+    graph_url = base64.b64encode(buf.getvalue()).decode('utf-8')
+    buf.close()
+    
 
     # Aperturas totales por día
     aperturas_usuario_por_dia = LockerLog.objects.filter(
@@ -148,16 +130,16 @@ def estadisticas(request):
         'casilleros_disponibles': casilleros_disponibles,
         'total_usuarios': total_usuarios,
         'controladores_activos': controladores_activos,
-        'casilleros_activos': casilleros_activos,
         'aperturas_por_dia': aperturas_por_dia,
         'aperturas_promedio_por_locker': aperturas_promedio_por_locker,
         'total_camaras': total_camaras,
         'casilleros_por_camara_promedio': casilleros_por_camara_promedio,
         'usuarios_con_multiples_casilleros': usuarios_con_multiples_casilleros,
+        'grafico_casilleros_por_usuario': graph_url,
     }
 
     return render(request, 'estadisticas.html', context)
-
+@never_cache
 @login_required
 def password_change(request):
     if request.method == 'POST':
@@ -171,6 +153,7 @@ def password_change(request):
 
     return render(request, 'password_change.html', {'form': form})
 # Vista para mostrar y editar el perfil del usuario
+@never_cache
 @login_required
 def profile(request):
     user = request.user  # Obtener el usuario actual
@@ -184,15 +167,16 @@ def profile(request):
         form = UserChangeForm(instance=user)  # Mostrar el formulario con los datos actuales
 
     return render(request, 'profile.html', {'form': form})  # Renderizar la plantilla con el formulario
-
+@never_cache
 @login_required
 def home(request):
     return render(request, 'home.html')
-
+@never_cache
 @login_required
 def mqtt_message_received(request):
     # Handle received MQTT messages here
     return HttpResponse("Received MQTT message!")
+@never_cache
 @login_required
 # Vista para mostrar el estado de los casilleros
 def casilleros_list(request):
@@ -205,7 +189,9 @@ def casilleros_list(request):
         casilleros = Casillero.objects.filter(usuario=request.user)
 
     return render(request, 'casilleros_list.html', {'casilleros': casilleros})
+@never_cache
 @login_required
+
 def casillero_detail(request, casillero_id):
     casillero = get_object_or_404(Casillero, id=casillero_id)
     usuarios = User.objects.all()  # Obtén todos los usuarios para mostrarlos en el formulario
@@ -286,5 +272,27 @@ def casillero_detail(request, casillero_id):
         'form': form,
         'usuarios': usuarios,  # Solo será útil si el usuario es superusuario
     })
+
+def camera_list(request):
+    """
+    Lista todas las cámaras disponibles.
+    """
+    cameras = Camera.objects.all()
+    return render(request, 'camera_list.html', {'cameras': cameras})
+
+def camera_detail(request, pk):
+    """
+    Muestra los detalles de una cámara específica.
+    """
+    camera = get_object_or_404(Camera, pk=pk)
+    return render(request, 'camera_detail.html', {'camera': camera})
+
+def camera_ping(request, pk):
+    """
+    Realiza una simulación de ping a la cámara.
+    """
+    camera = get_object_or_404(Camera, pk=pk)
+    # Aquí puedes implementar la lógica de ping más adelante
+    return JsonResponse({'message': f'Ping to camera {camera.name} successful!'})
 
 

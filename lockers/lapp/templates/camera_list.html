@@ -1,0 +1,21 @@
+
+{% extends 'base.html' %}
+{% block title %}Lista de Cámaras{% endblock %}
+
+{% block content %}
+    <h1 class="my-4" style="color: #1F3B4D; font-weight: 700;">Lista de Cámaras</h1>
+    <div class="row">
+        {% for camera in cameras %}
+            <div class="col-md-4 mb-4">
+                <div class="card" style="border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">
+                    <div class="card-body">
+                        <h5 class="card-title" style="color: #1F3B4D;">{{ camera.name }}</h5>
+                        <p class="card-text">Casilleros manejados: {{ camera.lockers_count }}</p>
+                        <a href="{% url 'camera_detail' camera.pk %}" class="btn btn-info">Detalles</a>
+                        <a href="{% url 'camera_ping' camera.pk %}" class="btn btn-success" onclick="alert('Ping enviado a {{ camera.name }}'); return false;">Ping</a>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endblock %}

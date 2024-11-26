@@ -1,89 +1,44 @@
+{% extends 'base.html' %}
 {% load static %}
 
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Casilleros Disponibles</title>
-
-    <!-- Agregar Bootstrap desde archivos estáticos -->
-    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
-
-    {% block extra_css %}{% endblock %}
-</head>
-<body>
-    <!-- Barra de navegación -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
-        <a class="navbar-brand" href="{% url 'home' %}">LockerRoom</a>
-        <div class="collapse navbar-collapse">
-            <ul class="navbar-nav mr-auto">
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'casilleros_list' %}">Mis Casilleros</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'estadisticas' %}">Estadísticas</a>
-                </li>
-            </ul>
-            <ul class="navbar-nav ml-auto">
-                {% if user.is_authenticated %}
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        Mi Perfil
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="navbarDropdown">
-                        <li><a class="dropdown-item" href="{% url 'profile' %}">Ver Perfil</a></li>
-                        <li><a class="dropdown-item" href="{% url 'logout' %}">Cerrar sesión</a></li>
-                    </ul>
-                </li>
-                {% else %}
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'login' %}">Iniciar sesión</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'register' %}">Registrarse</a>
-                </li>
-                {% endif %}
-            </ul>
-        </div>
-    </nav>
-
+{% block content %}
     <div class="container mt-4">
-        <h1 class="my-4">Casilleros Disponibles</h1>
-        <table class="table table-bordered">
+        <h1 class="my-4" style="color: #1F3B4D; font-weight: 700;">Casilleros Disponibles</h1>
+        <table class="table table-bordered" style="border-radius: 10px; overflow: hidden;">
             <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Usuario</th>
-                    <th>Contraseña</th>
-                    <th>Acciones</th>
+                <tr style="background-color: #1ABC9C; color: #FFFFFF;">
+                    <th style="background-color: #1ABC9C; color: #FFFFFF; border-radius: 10px 10px 0 0;">ID</th>
+                    <th style="background-color: #1ABC9C; color: #FFFFFF; border-radius: 10px 10px 0 0;">Usuario</th>
+                    <th style="background-color: #1ABC9C; color: #FFFFFF; border-radius: 10px 10px 0 0;">Contraseña</th>
+                    <th style="background-color: #1ABC9C; color: #FFFFFF; border-radius: 10px 10px 0 0;">Acciones</th>
                 </tr>
             </thead>
             <tbody>
                 {% for casillero in casilleros %}
                 <tr>
-                    <td>{{ casillero.locker_id }}</td>
-                    <td>{{ casillero.usuario.username }}</td>
-                    <td>{{ casillero.password }}</td>
+                    <td style="background-color: #FFFFFF; color: #000000; border-radius: 0 0 10px 0;">{{ casillero.locker_id }}</td>
+                    <td style="background-color: #FFFFFF; color: #000000; border-radius: 0 0 10px 0;">{{ casillero.usuario.username }}</td>
+                    <!-- Mostrar la contraseña solo si es superusuario -->
+                    <td style="background-color: #FFFFFF; color: #000000; border-radius: 0 0 10px 0;">
+                        {% if user.is_superuser %}
+                            {{ casillero.password }}
+                        {% else %}
+                            ****
+                        {% endif %}
+                    </td>
                     <td>
                         <!-- Botón que redirige a los detalles del casillero -->
-                        <a href="{% url 'locker_detail' casillero.id %}" class="btn btn-info">
+                        <a href="{% url 'casillero_detail' casillero.id %}" class="btn btn-info" style="background-color: #1F3B4D; border: none; color: #FFFFFF; border-radius: 5px;">
                             Ver Detalles
                         </a>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="4" class="text-center">No hay casilleros disponibles</td>
+                    <td colspan="4" class="text-center" style="color: #1F3B4D;">No hay casilleros disponibles</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-
-    <!-- Agregar los scripts de Bootstrap desde archivos estáticos -->
-    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
-
-    {% block extra_js %}{% endblock %}
-</body>
-</html>
+{% endblock %}

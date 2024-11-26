@@ -25,9 +25,20 @@ SECRET_KEY = 'django-insecure-@jqux%((#34ahh645q01f7u2$_iq3vx&g29@07s^dka3nbn*t#
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+SOCIALACCOUNT_LOGIN_ON_GET = True
+ACCOUNT_LOGOUT_ON_GET = True
+ACCOUNT_AUTHENTICATED_REDIRECTS = True
+
 ALLOWED_HOSTS = []
-LOGIN_URL = 'login/'
-LOGIN_REDIRECT_URL = 'home'
+LOGIN_URL = 'accounts/'
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/'
+
+DEFAULT_CACHE_ALIAS = 'default'
+
+CACHE_MIDDLEWARE_ALIAS = 'default'
+CACHE_MIDDLEWARE_SECONDS = 0
+CACHE_MIDDLEWARE_KEY_PREFIX = 'no_cache_'
 
 # Application definition
 
@@ -38,7 +49,11 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'lapp'                              # incluye lapp
+    'lapp',                              # incluye lapp
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google', #googol :)
 ]
 
 MIDDLEWARE = [
@@ -49,7 +64,9 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
+
 
 ROOT_URLCONF = 'lockers.urls'
 
@@ -125,7 +142,29 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+AUTHENTICATION_BACKENDS = [
+    
+    # Needed to login by username in Django admin, regardless of `allauth`
+    'django.contrib.auth.backends.ModelBackend',
 
+    # `allauth` specific authentication methods, such as login by email
+    'allauth.account.auth_backends.AuthenticationBackend',
+    
+]
+
+SOCIALACCOUNT_PROVIDERS = {
+    'google': {
+        'SCOPE': [
+            'profile',
+            'email',
+        ],
+        'AUTH_PARAMS': {
+            'access_type': 'online',
+            },
+        'OAUTH_PKCE_ENABLED': True,
+    
+    }
+}
 
 
 # Configuración del servidor SMTP de Gmail
@@ -147,6 +186,7 @@ MQTT_PASSWORD = 'PDS123'  # Optional password
 
 
 STATIC_URL = '/static/'
+SITE_ID = 1
 
 # Directorios donde Django buscará los archivos estáticos
 STATICFILES_DIRS = [
