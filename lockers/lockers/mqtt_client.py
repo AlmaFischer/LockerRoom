@@ -11,6 +11,7 @@ from django.utils import timezone
 
 recent_messages = {}
 
+
 # Configura Django para cargar las aplicaciones
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'your_project.settings')  # Cambia 'your_project' al nombre de tu proyecto
 django.setup()
@@ -25,6 +26,8 @@ def on_connect(client, userdata, flags, rc):
         client.subscribe("open_locker_g15")  # Suscribirse al topic "open_locker"
         client.subscribe("new_camera_g15")  # Para agregar nuevos casilleros
         client.subscribe("close_locker_g15")  # Suscribirse al topic "close_locker"
+        client.subscribe("pong_g15") #para recibir el pong del ESP32
+        #client.subscribe("ping_g15")
     else:
         print("Failed to connect. Return code:", rc)
 
@@ -144,6 +147,24 @@ def on_message(client, userdata, msg):
             # Actualizar la cantidad de casilleros en la cámara
             camera.lockers_count += locker_count
             camera.save()
+
+        except json.JSONDecodeError:
+            print("Error processing message or invalid JSON format")
+    elif msg.topic == "pong_g15":
+        print("Pong recived")
+        try:
+            data = json.loads(msg.payload.decode())
+            camera_name = data.get("camera_name")
+            status = data.get("status")
+            print("HOLA")
+            if status == "pong":
+                print(f"Respuesta 'pong' recibida de la cámara: {camera_name}")
+                camera = Camera.objects.get(name=camera_name)
+                print(f"esta es la cam{camera.name}")
+                camera.ping()
+                # Aquí puedes realizar cualquier lógica adicional
+                # Por ejemplo, guardar en la base de datos o notificar a la vista
+                # guardar_pong_db(camera_name)
 
         except json.JSONDecodeError:
             print("Error processing message or invalid JSON format")

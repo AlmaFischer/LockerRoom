@@ -1,13 +1,31 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+from datetime import timedelta
 
 class Camera(models.Model):
     # Atributos para el modelo Camera
     name = models.CharField(max_length=100, unique=True)  # Nombre único de la cámara
     lockers_count = models.PositiveIntegerField(default=0)  # Cantidad de casilleros que maneja la cámara
+    is_ping = models.BooleanField(default=False)  # Si la cámara está siendo "pingueada"
+    ping_time = models.DateTimeField(null=True, blank=True)  # Momento en que se realizó el ping
 
     def __str__(self):
         return self.name
+
+    def ping(self):
+        """ Activa el ping para la cámara durante 30 segundos. """
+        self.is_ping = True
+        self.ping_time = timezone.now()  # Registra el momento del ping
+        self.save()
+
+    def check_ping(self):
+        """ Verifica si el ping todavía es válido (30 segundos). """
+        if self.is_ping and self.ping_time:
+            if timezone.now() - self.ping_time > timedelta(seconds=30):
+                self.is_ping = False  # Expira el ping después de 30 segundos
+                self.save()
+        return self.is_ping  # Devuelve el estado actual del ping
 
 class Casillero(models.Model):
     # Atributos para el modelo Casillero

@@ -34,11 +34,15 @@ LOGIN_URL = 'accounts/'
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/'
 
-DEFAULT_CACHE_ALIAS = 'default'
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
 
-CACHE_MIDDLEWARE_ALIAS = 'default'
-CACHE_MIDDLEWARE_SECONDS = 0
-CACHE_MIDDLEWARE_KEY_PREFIX = 'no_cache_'
+
+
 
 # Application definition
 

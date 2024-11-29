@@ -24,6 +24,8 @@ from django.views.decorators.cache import never_cache
 import matplotlib.pyplot as plt
 import io
 import urllib, base64
+from django.core.cache import cache
+from django.http import JsonResponse
 @never_cache
 @login_required
 def estadisticas(request):
@@ -274,11 +276,23 @@ def casillero_detail(request, casillero_id):
     })
 
 def camera_list(request):
+
     """
     Lista todas las cámaras disponibles.
     """
-    cameras = Camera.objects.all()
-    return render(request, 'camera_list.html', {'cameras': cameras})
+    cameras = Camera.objects.all()  # Recuperar las cámaras de la base de datos
+    camera_status = {}
+
+
+    # Comprobar el estado del ping desde el cache
+    for camera in cameras:
+        #camera.css_class = "text-success" if camera.is_ping else "text-danger"
+        # Recuperamos el estado del ping del cache
+        status = cache.get(camera.name, False)
+        camera_status[camera.name] = status
+        camera.check_ping()
+
+    return render(request, 'camera_list.html', {'cameras': cameras, 'camera_status': camera_status})
 
 def camera_detail(request, pk):
     """
@@ -287,12 +301,29 @@ def camera_detail(request, pk):
     camera = get_object_or_404(Camera, pk=pk)
     return render(request, 'camera_detail.html', {'camera': camera})
 
-def camera_ping(request, pk):
+def camera_ping(request, camera_name):
     """
     Realiza una simulación de ping a la cámara.
     """
-    camera = get_object_or_404(Camera, pk=pk)
-    # Aquí puedes implementar la lógica de ping más adelante
-    return JsonResponse({'message': f'Ping to camera {camera.name} successful!'})
+    try:
+        
+        # Obtener la cámara por su nombre
+        camera = Camera.objects.get(name=camera_name)
+        
+        # Verificar si el ping es válido (si no ha expirado)
+        if camera.check_ping():
+            return JsonResponse({'message': f'Camera {camera_name} is already pinged and active!'})
+        
+        # Si el ping no está activo, hacer el ping y actualizar el estado
+        #camera.ping()  # Esto activará el ping y establecerá el tiempo
+        mqtt_message = {
+            "cam_target": camera_name,
+        }
+        send_message("ping_g15", json.dumps(mqtt_message))
+        
+        return JsonResponse({'message': f'Ping to camera {camera_name} please wait.'})
+
+    except Camera.DoesNotExist:
+        return JsonResponse({'error': f'Camera {camera_name} not found!'}, status=404)
 
 

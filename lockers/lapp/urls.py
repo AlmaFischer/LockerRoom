@@ -3,6 +3,7 @@ from . import views
 
 urlpatterns = [
     # Otras rutas
+    path('camera/ping/<str:camera_name>/', views.camera_ping, name='camera_ping'),
     path('accounts/', include('allauth.urls')),  # Esto maneja login, logout y demás
     path('profile/', views.profile, name='profile'),
     path('password_change/', views.password_change, name='password_change'),
