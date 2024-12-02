@@ -70,5 +70,21 @@
             </div>
         </form>
         {% endif %}
+
+        <!-- Formulario para abrir el casillero -->
+        <form method="POST" autocomplete="off">
+            {% csrf_token %}
+            <button type="submit" name="abrir_casillero" class="btn" style="background-color: #1ABC9C; border: none; color: #FFFFFF; margin-top: 20px;">
+                Abrir Casillero
+            </button>
+        </form>
+
+        <!-- Formulario para cerrar el casillero -->
+        <form method="POST" autocomplete="off">
+            {% csrf_token %}
+            <button type="submit" name="cerrar_casillero" class="btn" style="background-color: #E74C3C; border: none; color: #FFFFFF; margin-top: 10px;">
+                Cerrar Casillero
+            </button>
+        </form>
     </div>
 {% endblock %}

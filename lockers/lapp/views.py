@@ -202,6 +202,8 @@ def casillero_detail(request, casillero_id):
     if not request.user.is_superuser and casillero.usuario != request.user:
         return redirect('home')  # Redirige si no tiene permiso
 
+    form = CasilleroPasswordForm(instance=casillero)  # Define el formulario por defecto
+
     if request.method == 'POST':
         # Si se presionó el botón para cambiar la contraseña
         if 'cambiar_contraseña' in request.POST:
@@ -266,14 +268,58 @@ def casillero_detail(request, casillero_id):
 
                 return redirect('casillero_detail', casillero_id=casillero.id)
 
-    else:
-        form = CasilleroPasswordForm(instance=casillero)
+        elif 'abrir_casillero' in request.POST:
+            if request.user.is_superuser:
+                mqtt_message = {
+                    "cam_target": casillero.camera.name,  # Nombre de la cámara asociada
+                    "id": casillero.locker_id[-1],  # ID del casillero (último carácter del ID)
+                    "admin": "True",
+                    "use_cam": "False",
+                    "password": "",  # Nueva contraseña
+                    "action": "open"
+                }
+                send_message("locker_action_g15", json.dumps(mqtt_message))
+            else:
+                #LOGICA DE ABRIR EL CASILLERO CON UNA PASSWORD
+                mqtt_message = {
+                    "cam_target": casillero.camera.name,  # Nombre de la cámara asociada
+                    "id": casillero.locker_id[-1],  # ID del casillero (último carácter del ID)
+                    "admin": "False",
+                    "use_cam": "False",
+                    "password": "",  # CONTRASEÑA PARA ABRIR EL CASILLERO
+                    "action": "open"
+                }
+
+                send_message("locker_action_g15", json.dumps(mqtt_message))
+
+        elif 'cerrar_casillero' in request.POST:
+            if request.user.is_superuser:
+                mqtt_message = {
+                    "cam_target": casillero.camera.name,  # Nombre de la cámara asociada
+                    "id": casillero.locker_id[-1],  # ID del casillero (último carácter del ID)
+                    "admin": "True",
+                    "use_cam": "False",
+                    "password": "",  # Nueva contraseña
+                    "action": "close"
+                }
+                send_message("locker_action_g15", json.dumps(mqtt_message))
+        elif 'abrir_casillero_cam' in request.POST:
+            mqtt_message = {
+                    "cam_target": casillero.camera.name,  # Nombre de la cámara asociada
+                    "id": casillero.locker_id[-1],  # ID del casillero (último carácter del ID)
+                    "admin": "False",
+                    "use_cam": "True",
+                    "password": "",
+                    "action": "open"
+                }
+            send_message("locker_action_g15", json.dumps(mqtt_message))
 
     return render(request, 'casillero_detail.html', {
         'casillero': casillero,
         'form': form,
         'usuarios': usuarios,  # Solo será útil si el usuario es superusuario
     })
+
 
 def camera_list(request):
 

@@ -15,3 +15,8 @@ urlpatterns = [
     path('cameras/<int:pk>/', views.camera_detail, name='camera_detail'),
     path('cameras/<int:pk>/ping/', views.camera_ping, name='camera_ping'),
 ]
+#TODO list:
+#Lo pingo aqui porque asi no se me pierde xd
+#Mejorar Estadisticas
+#Hacer toda la construccion del locker
+#Armar todo xd
