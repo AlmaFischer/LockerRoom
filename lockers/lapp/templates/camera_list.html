@@ -31,10 +31,10 @@
             fetch(`/camera/ping/${cameraName}/`)
                 .then(response => response.json())
                 .then(data => {
-                    alert(data.message);  // Muestra el mensaje de éxito
+                    //alert(data.message);  // Muestra el mensaje de éxito
                     setTimeout(() => {
                         location.reload(); // Recarga la página después de 5 segundos
-                        alert("Update");
+                        //valert("Update");
                     }, 1000);
                     
 
